@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
@@ -28,7 +29,7 @@ async def process_article(article_id: uuid.UUID) -> None:
             return
         try:
             client = get_openai_client()
-            result = generate_article(article.original_text, client)
+            result = await asyncio.to_thread(generate_article, article.original_text, client)
             article.title = result["title"]
             article.intro_hook = result["intro_hook"]
             article.body_sections = result["body_sections"]
