@@ -1,0 +1,21 @@
+# Python virtual environment
+backend/.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Backend env (keep .env.example)
+backend/.env
+
+# Frontend env (keep .env.local.example)
+frontend/.env.local
+
+# Next.js build output
+frontend/.next/
+frontend/node_modules/
+
+# OS
+.DS_Store
