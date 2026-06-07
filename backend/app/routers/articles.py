@@ -31,7 +31,10 @@ async def process_article(article_id: uuid.UUID) -> None:
             return
         try:
             client = get_openai_client()
-            result = await asyncio.to_thread(generate_article, article.original_text, client)
+            result = await asyncio.wait_for(
+                asyncio.to_thread(generate_article, article.original_text, client),
+                timeout=120.0,
+            )
             article.title = result["title"]
             article.intro_hook = result["intro_hook"]["content"]
             article.intro_hook_source_quote = result["intro_hook"]["source_quote"] or None
@@ -47,6 +50,9 @@ async def process_article(article_id: uuid.UUID) -> None:
                 article.ethics_safety_notes_source_quote = None
             article.key_facts = result["key_facts"]
             article.status = "completed"
+        except asyncio.TimeoutError:
+            article.status = "failed"
+            article.error_message = "Generation timed out after 2 minutes. Please retry."
         except LLMError as e:
             article.status = "failed"
             article.error_message = str(e)
