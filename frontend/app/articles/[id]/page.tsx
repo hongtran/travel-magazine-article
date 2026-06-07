@@ -1,16 +1,16 @@
 "use client"
 import { useEffect, useState } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useParams } from "next/navigation"
 import Link from "next/link"
 import { Article, api } from "@/lib/api"
 import { ArticleEditor } from "@/components/ArticleEditor"
 
 export default function ArticlePage() {
   const { id } = useParams<{ id: string }>()
-  const router = useRouter()
   const [article, setArticle] = useState<Article | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle")
+  const [retryKey, setRetryKey] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -23,7 +23,14 @@ export default function ArticlePage() {
         setArticle(data)
 
         if (data.status === "processing") {
+          let polls = 0
+          const MAX_POLLS = 150 // 5 minutes at 2s interval
           pollInterval = setInterval(async () => {
+            if (++polls > MAX_POLLS) {
+              clearInterval(pollInterval!)
+              if (!cancelled) setError("Generation is taking longer than expected. Check back later.")
+              return
+            }
             try {
               const status = await api.getArticleStatus(id)
               if (cancelled) return
@@ -50,13 +57,13 @@ export default function ArticlePage() {
       cancelled = true
       if (pollInterval) clearInterval(pollInterval)
     }
-  }, [id])
+  }, [id, retryKey])
 
   const handleRetry = async () => {
     setError(null)
     await api.retryArticle(id)
     setArticle((prev) => prev ? { ...prev, status: "processing", error_message: null } : prev)
-    router.refresh()
+    setRetryKey((k) => k + 1)
   }
 
   if (error) {

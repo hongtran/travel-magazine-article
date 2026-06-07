@@ -13,7 +13,15 @@ ARTICLE_SCHEMA = {
         "additionalProperties": False,
         "properties": {
             "title": {"type": "string"},
-            "intro_hook": {"type": "string"},
+            "intro_hook": {
+                "type": "object",
+                "required": ["content", "source_quote"],
+                "additionalProperties": False,
+                "properties": {
+                    "content": {"type": "string"},
+                    "source_quote": {"type": "string"}
+                }
+            },
             "body_sections": {
                 "type": "array",
                 "items": {
@@ -27,9 +35,44 @@ ARTICLE_SCHEMA = {
                     }
                 }
             },
-            "best_for": {"type": "array", "items": {"type": "string"}},
-            "not_for": {"type": "array", "items": {"type": "string"}},
-            "ethics_safety_notes": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+            "best_for": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": ["value", "source_quote"],
+                    "additionalProperties": False,
+                    "properties": {
+                        "value": {"type": "string"},
+                        "source_quote": {"type": "string"}
+                    }
+                }
+            },
+            "not_for": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": ["value", "source_quote"],
+                    "additionalProperties": False,
+                    "properties": {
+                        "value": {"type": "string"},
+                        "source_quote": {"type": "string"}
+                    }
+                }
+            },
+            "ethics_safety_notes": {
+                "anyOf": [
+                    {
+                        "type": "object",
+                        "required": ["content", "source_quote"],
+                        "additionalProperties": False,
+                        "properties": {
+                            "content": {"type": "string"},
+                            "source_quote": {"type": "string"}
+                        }
+                    },
+                    {"type": "null"}
+                ]
+            },
             "key_facts": {
                 "type": "array",
                 "items": {
@@ -56,8 +99,10 @@ Rules:
 - Only use information present in the notes. Do not embellish or invent details.
 - source_quote must be a verbatim excerpt from the notes that supports the claim. Use an empty string if no specific quote exists.
 - ethics_safety_notes must be null unless the notes contain explicit safety or ethical content.
-- best_for and not_for must be specific and honest — not marketing copy.
-- body_sections should be 3–5 sections covering what the experience is like. Write in warm editorial prose, not bullet points."""
+- best_for and not_for must be specific and honest — not marketing copy. 3–5 items each maximum.
+- body_sections must be 3–5 sections regardless of how long the notes are. If the notes cover many topics, prioritize the most distinctive and experiential moments. Omit minor logistics and repetitive detail.
+- key_facts must be 3–8 items maximum. Pick only the facts most useful to a first-time visitor — skip anything redundant or logistical noise.
+- Be selective, not exhaustive. A longer input does not mean a longer article. Edit ruthlessly."""
 
 def generate_article(original_text: str, client: OpenAI) -> dict:
     last_error: Exception | None = None

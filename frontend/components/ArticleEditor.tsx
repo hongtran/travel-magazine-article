@@ -1,6 +1,6 @@
 "use client"
 import { useState } from "react"
-import { Article, api } from "@/lib/api"
+import { Article, ListItem, api } from "@/lib/api"
 import { EditableField } from "./EditableField"
 import { SourceChip } from "./SourceChip"
 
@@ -37,14 +37,17 @@ export function ArticleEditor({ initial, onSaveState }: Props) {
       />
 
       {/* Intro hook */}
-      <EditableField
-        value={article.intro_hook ?? ""}
-        onSave={(v) => save("intro_hook", v)}
-        multiline
-        placeholder="Write a compelling intro hook…"
-        displayClassName="text-xl text-gray-600 leading-relaxed mb-10 border-l-4 border-amber-400 pl-4 italic"
-        className="text-xl"
-      />
+      <div className="flex items-start gap-2 mb-10">
+        <EditableField
+          value={article.intro_hook ?? ""}
+          onSave={(v) => save("intro_hook", v)}
+          multiline
+          placeholder="Write a compelling intro hook…"
+          displayClassName="text-xl text-gray-600 leading-relaxed border-l-4 border-amber-400 pl-4 italic flex-1"
+          className="text-xl flex-1"
+        />
+        <SourceChip quote={article.intro_hook_source_quote} />
+      </div>
 
       {/* Body sections */}
       {(article.body_sections ?? []).map((section, i) => (
@@ -88,14 +91,15 @@ export function ArticleEditor({ initial, onSaveState }: Props) {
               <li key={i} className="flex items-center gap-2 text-sm text-gray-600">
                 <span className="text-green-500">✓</span>
                 <EditableField
-                  value={item}
+                  value={item.value}
                   onSave={(v) => {
-                    const list = [...(article.best_for ?? [])]
-                    list[i] = v
+                    const list = [...(article.best_for ?? [])] as ListItem[]
+                    list[i] = { ...list[i], value: v }
                     return save("best_for", list)
                   }}
                   displayClassName="text-sm text-gray-600"
                 />
+                <SourceChip quote={item.source_quote} />
               </li>
             ))}
           </ul>
@@ -107,14 +111,15 @@ export function ArticleEditor({ initial, onSaveState }: Props) {
               <li key={i} className="flex items-center gap-2 text-sm text-gray-600">
                 <span className="text-red-400">✗</span>
                 <EditableField
-                  value={item}
+                  value={item.value}
                   onSave={(v) => {
-                    const list = [...(article.not_for ?? [])]
-                    list[i] = v
+                    const list = [...(article.not_for ?? [])] as ListItem[]
+                    list[i] = { ...list[i], value: v }
                     return save("not_for", list)
                   }}
                   displayClassName="text-sm text-gray-600"
                 />
+                <SourceChip quote={item.source_quote} />
               </li>
             ))}
           </ul>
@@ -124,7 +129,10 @@ export function ArticleEditor({ initial, onSaveState }: Props) {
       {/* Ethics & Safety */}
       {article.ethics_safety_notes && (
         <div className="my-8 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-          <h3 className="font-semibold text-yellow-800 mb-2">Ethics & Safety</h3>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="font-semibold text-yellow-800">Ethics & Safety</h3>
+            <SourceChip quote={article.ethics_safety_notes_source_quote} />
+          </div>
           <EditableField
             value={article.ethics_safety_notes}
             onSave={(v) => save("ethics_safety_notes", v)}
@@ -137,9 +145,9 @@ export function ArticleEditor({ initial, onSaveState }: Props) {
       {/* Key facts */}
       <div className="my-10">
         <h3 className="font-semibold text-gray-700 mb-3">Key facts</h3>
-        <div className="divide-y divide-gray-100 border border-gray-200 rounded-lg overflow-hidden">
+        <div className="divide-y divide-gray-100 border border-gray-200 rounded-lg">
           {(article.key_facts ?? []).map((fact, i) => (
-            <div key={i} className="flex items-center px-4 py-3 bg-white">
+            <div key={i} className="flex items-center px-4 py-3 bg-white first:rounded-t-lg last:rounded-b-lg">
               <EditableField
                 value={fact.label}
                 onSave={(v) => {
@@ -147,8 +155,8 @@ export function ArticleEditor({ initial, onSaveState }: Props) {
                   facts[i] = { ...facts[i], label: v }
                   return save("key_facts", facts)
                 }}
-                displayClassName="text-sm font-medium text-gray-500 w-28 shrink-0"
-                className="text-sm w-28"
+                displayClassName="text-sm font-medium text-gray-500 w-36 shrink-0"
+                className="text-sm w-36"
               />
               <EditableField
                 value={fact.value}

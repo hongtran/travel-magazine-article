@@ -14,6 +14,11 @@ export interface KeyFact {
   source_quote: string
 }
 
+export interface ListItem {
+  value: string
+  source_quote: string
+}
+
 export interface Article {
   id: string
   status: ArticleStatus
@@ -21,10 +26,12 @@ export interface Article {
   original_text: string
   title: string | null
   intro_hook: string | null
+  intro_hook_source_quote: string | null
   body_sections: BodySection[] | null
-  best_for: string[] | null
-  not_for: string[] | null
+  best_for: ListItem[] | null
+  not_for: ListItem[] | null
   ethics_safety_notes: string | null
+  ethics_safety_notes_source_quote: string | null
   key_facts: KeyFact[] | null
   error_message: string | null
   created_at: string

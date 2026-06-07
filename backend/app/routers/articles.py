@@ -1,8 +1,8 @@
 import asyncio
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from openai import OpenAI
 
@@ -17,6 +17,8 @@ router = APIRouter(prefix="/articles", tags=["articles"])
 
 ALLOWED_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 MAX_SIZE_BYTES = 10 * 1024 * 1024  # 10MB
+MIN_WORD_COUNT = 50
+DAILY_GENERATION_LIMIT = 20
 
 def get_openai_client() -> OpenAI:
     return OpenAI(api_key=settings.openai_api_key)
@@ -31,11 +33,18 @@ async def process_article(article_id: uuid.UUID) -> None:
             client = get_openai_client()
             result = await asyncio.to_thread(generate_article, article.original_text, client)
             article.title = result["title"]
-            article.intro_hook = result["intro_hook"]
+            article.intro_hook = result["intro_hook"]["content"]
+            article.intro_hook_source_quote = result["intro_hook"]["source_quote"] or None
             article.body_sections = result["body_sections"]
             article.best_for = result["best_for"]
             article.not_for = result["not_for"]
-            article.ethics_safety_notes = result["ethics_safety_notes"]
+            ethics = result["ethics_safety_notes"]
+            if ethics:
+                article.ethics_safety_notes = ethics["content"]
+                article.ethics_safety_notes_source_quote = ethics["source_quote"] or None
+            else:
+                article.ethics_safety_notes = None
+                article.ethics_safety_notes_source_quote = None
             article.key_facts = result["key_facts"]
             article.status = "completed"
         except LLMError as e:
@@ -64,6 +73,23 @@ async def create_article(
         text = extract_text(content)
     except DocumentError as e:
         raise HTTPException(status_code=422, detail=str(e))
+
+    word_count = len(text.split())
+    if word_count < MIN_WORD_COUNT:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Document is too short ({word_count} words). Please provide at least {MIN_WORD_COUNT} words of notes."
+        )
+
+    today_start = datetime.combine(date.today(), datetime.min.time()).replace(tzinfo=timezone.utc)
+    count_result = await db.execute(
+        select(func.count()).where(Article.created_at >= today_start)
+    )
+    if count_result.scalar() >= DAILY_GENERATION_LIMIT:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Daily generation limit of {DAILY_GENERATION_LIMIT} articles reached. Try again tomorrow."
+        )
 
     article = Article(original_filename=file.filename, original_text=text)
     db.add(article)

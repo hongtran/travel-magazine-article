@@ -12,6 +12,10 @@ class KeyFact(BaseModel):
     value: str
     source_quote: str
 
+class ListItem(BaseModel):
+    value: str
+    source_quote: str
+
 class ArticleStatusResponse(BaseModel):
     id: uuid.UUID
     status: str
@@ -33,10 +37,12 @@ class ArticleResponse(BaseModel):
     original_text: str
     title: str | None
     intro_hook: str | None
+    intro_hook_source_quote: str | None
     body_sections: list[BodySection] | None
-    best_for: list[str] | None
-    not_for: list[str] | None
+    best_for: list[ListItem] | None
+    not_for: list[ListItem] | None
     ethics_safety_notes: str | None
+    ethics_safety_notes_source_quote: str | None
     key_facts: list[KeyFact] | None
     error_message: str | None
     created_at: datetime
@@ -47,8 +53,10 @@ class ArticleResponse(BaseModel):
 class ArticleUpdate(BaseModel):
     title: str | None = None
     intro_hook: str | None = None
+    intro_hook_source_quote: str | None = None
     body_sections: list[BodySection] | None = None
-    best_for: list[str] | None = None
-    not_for: list[str] | None = None
+    best_for: list[ListItem] | None = None
+    not_for: list[ListItem] | None = None
     ethics_safety_notes: str | None = None
+    ethics_safety_notes_source_quote: str | None = None
     key_facts: list[KeyFact] | None = None
