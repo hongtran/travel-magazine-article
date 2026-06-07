@@ -2,6 +2,8 @@ import { api } from "@/lib/api"
 import { UploadDropzone } from "@/components/UploadDropzone"
 import { ArticleList } from "@/components/ArticleList"
 
+export const dynamic = "force-dynamic"
+
 export default async function HomePage() {
   const articles = await api.listArticles().catch(() => [])
 
