@@ -38,9 +38,9 @@ export default function ArticlePage() {
                 clearInterval(pollInterval!)
                 const full = await api.getArticle(id)
                 if (!cancelled) setArticle(full)
-              } else if (status.status === "failed") {
+              } else if (status.status === "failed" || status.status === "rejected") {
                 clearInterval(pollInterval!)
-                setArticle((prev) => prev ? { ...prev, status: "failed", error_message: status.error_message } : prev)
+                setArticle((prev) => prev ? { ...prev, status: status.status, error_message: status.error_message } : prev)
               }
             } catch {
               // network blip — keep polling
@@ -83,17 +83,19 @@ export default function ArticlePage() {
     return <ProcessingView message="Generating your article…" />
   }
 
-  if (article.status === "failed") {
+  if (article.status === "failed" || article.status === "rejected") {
     return (
       <main className="max-w-2xl mx-auto px-4 py-16 text-center">
         <p className="text-red-600 font-medium mb-2">Generation failed</p>
         <p className="text-gray-500 text-sm mb-6">{article.error_message ?? "An unexpected error occurred."}</p>
-        <button
-          onClick={handleRetry}
-          className="bg-amber-600 text-white px-6 py-2 rounded-lg hover:bg-amber-700 transition-colors mr-4"
-        >
-          Retry
-        </button>
+        {article.status === "failed" && (
+          <button
+            onClick={handleRetry}
+            className="bg-amber-600 text-white px-6 py-2 rounded-lg hover:bg-amber-700 transition-colors mr-4"
+          >
+            Retry
+          </button>
+        )}
         <Link href="/" className="text-gray-400 hover:text-gray-700">← Back</Link>
       </main>
     )
