@@ -1,6 +1,6 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 
-export type ArticleStatus = "processing" | "completed" | "failed"
+export type ArticleStatus = "processing" | "completed" | "failed" | "rejected"
 
 export interface BodySection {
   heading: string

@@ -1,8 +1,35 @@
 import json
+import openai
 from openai import OpenAI
+
 
 class LLMError(Exception):
     pass
+
+
+class LLMTransientError(LLMError):
+    """Temporary failure that may resolve on retry (rate limit, network, server error)."""
+    pass
+
+
+class LLMPermanentError(LLMError):
+    """Permanent failure that will not resolve on retry (auth, content policy, bad request)."""
+    pass
+
+
+_TRANSIENT_EXCEPTIONS = (
+    openai.APIConnectionError,
+    openai.APITimeoutError,
+    openai.RateLimitError,
+    openai.InternalServerError,
+)
+
+_PERMANENT_EXCEPTIONS = (
+    openai.AuthenticationError,
+    openai.PermissionDeniedError,
+    openai.BadRequestError,
+    openai.UnprocessableEntityError,
+)
 
 ARTICLE_SCHEMA = {
     "name": "article",
@@ -104,6 +131,47 @@ Rules:
 - key_facts must be 3–8 items maximum. Pick only the facts most useful to a first-time visitor — skip anything redundant or logistical noise.
 - Be selective, not exhaustive. A longer input does not mean a longer article. Edit ruthlessly."""
 
+_VALIDATION_SCHEMA = {
+    "name": "travel_validation",
+    "strict": True,
+    "schema": {
+        "type": "object",
+        "required": ["is_relevant", "reason"],
+        "additionalProperties": False,
+        "properties": {
+            "is_relevant": {"type": "boolean"},
+            "reason": {"type": "string"}
+        }
+    }
+}
+
+_VALIDATION_PROMPT = """Determine whether the following document contains genuine notes about a travel experience — visiting a place, doing an activity (tour, hike, dive, cultural experience, accommodation, etc.), or similar content intended for a travel magazine.
+
+Return is_relevant: true only if the document is clearly about a real travel experience.
+Return is_relevant: false if it is a corporate report, academic paper, recipe, legal document, CV/resume, piece of fiction, or any other non-travel content.
+
+Provide a brief reason (1–2 sentences)."""
+
+
+def validate_travel_relevance(text: str, client: OpenAI) -> tuple[bool, str]:
+    """Returns (is_relevant, reason). Raises LLMTransientError or LLMPermanentError on failure."""
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": _VALIDATION_PROMPT},
+                {"role": "user", "content": text}
+            ],
+            response_format={"type": "json_schema", "json_schema": _VALIDATION_SCHEMA}
+        )
+        result = json.loads(response.choices[0].message.content)
+        return result["is_relevant"], result["reason"]
+    except _PERMANENT_EXCEPTIONS as e:
+        raise LLMPermanentError(f"API configuration error: {e}") from e
+    except Exception as e:
+        raise LLMTransientError(f"Validation call failed: {e}") from e
+
+
 def generate_article(original_text: str, client: OpenAI) -> dict:
     last_error: Exception | None = None
     for _ in range(2):
@@ -117,6 +185,10 @@ def generate_article(original_text: str, client: OpenAI) -> dict:
                 response_format={"type": "json_schema", "json_schema": ARTICLE_SCHEMA}
             )
             return json.loads(response.choices[0].message.content)
+        except _PERMANENT_EXCEPTIONS as e:
+            raise LLMPermanentError(f"API configuration error: {e}") from e
+        except _TRANSIENT_EXCEPTIONS as e:
+            last_error = e
         except Exception as e:
             last_error = e
-    raise LLMError(f"Failed to generate article: {last_error}")
+    raise LLMTransientError(f"Failed after 2 attempts: {last_error}")

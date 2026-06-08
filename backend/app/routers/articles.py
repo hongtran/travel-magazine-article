@@ -11,7 +11,7 @@ from ..database import AsyncSessionLocal, get_db
 from ..models import Article
 from ..schemas import ArticleListItem, ArticleResponse, ArticleStatusResponse, ArticleUpdate
 from ..services.document import DocumentError, extract_text
-from ..services.llm import LLMError, generate_article
+from ..services.llm import LLMError, LLMPermanentError, LLMTransientError, generate_article, validate_travel_relevance
 
 router = APIRouter(prefix="/articles", tags=["articles"])
 
@@ -24,6 +24,11 @@ def get_openai_client() -> OpenAI:
     return OpenAI(api_key=settings.openai_api_key)
 
 
+class _DocumentRejected(Exception):
+    def __init__(self, reason: str):
+        self.reason = reason
+
+
 async def process_article(article_id: uuid.UUID) -> None:
     async with AsyncSessionLocal() as db:
         article = await db.get(Article, article_id)
@@ -31,6 +36,14 @@ async def process_article(article_id: uuid.UUID) -> None:
             return
         try:
             client = get_openai_client()
+
+            is_relevant, reason = await asyncio.wait_for(
+                asyncio.to_thread(validate_travel_relevance, article.original_text, client),
+                timeout=30.0,
+            )
+            if not is_relevant:
+                raise _DocumentRejected(reason)
+
             result = await asyncio.wait_for(
                 asyncio.to_thread(generate_article, article.original_text, client),
                 timeout=120.0,
@@ -50,10 +63,16 @@ async def process_article(article_id: uuid.UUID) -> None:
                 article.ethics_safety_notes_source_quote = None
             article.key_facts = result["key_facts"]
             article.status = "completed"
+        except _DocumentRejected as e:
+            article.status = "rejected"
+            article.error_message = f"This document doesn't appear to be about a travel experience. {e.reason}"
         except asyncio.TimeoutError:
             article.status = "failed"
-            article.error_message = "Generation timed out after 2 minutes. Please retry."
-        except LLMError as e:
+            article.error_message = "Generation timed out. Please retry."
+        except LLMPermanentError as e:
+            article.status = "rejected"
+            article.error_message = str(e)
+        except (LLMTransientError, LLMError) as e:
             article.status = "failed"
             article.error_message = str(e)
         article.updated_at = datetime.now(timezone.utc)
@@ -165,6 +184,8 @@ async def retry_article(
     article = await db.get(Article, article_id)
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
+    if article.status == "rejected":
+        raise HTTPException(status_code=422, detail="This document was rejected and cannot be retried. Please upload travel experience notes.")
     if article.status != "failed":
         raise HTTPException(status_code=400, detail="Only failed articles can be retried")
 
